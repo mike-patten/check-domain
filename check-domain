@@ -1,0 +1,63 @@
+#!/bin/bash
+set -euo pipefail
+IFS=$'\n\t'
+
+if [ -z $1 ]; then
+  echo I need the name of the domain you want to check
+  exit
+fi
+whois $1 |grep -E -- 'Registrar:|Domain\ Status:|Name\ Server:'
+as=($(dig a $1 +short))
+mxs=($(dig mx $1 +short))
+txts=($(dig txt "$1" +short))
+dmarc=$(dig txt _dmarc.$1 +short)
+declare -a hs
+echo NS:
+dig ns $1 +short
+echo -e "\n"
+
+if [ ${#as[*]} == 0 ]; then
+  echo No A record for $1
+else
+  for i in "${!as[@]}"
+  do
+    echo Address $i: ${as[$i]}
+    hs[$i]=$(dig -x ${as[$i]} +short)
+  done
+fi
+
+if [ ${#mxs[*]} == 0 ]; then
+  echo No MX records for $1
+else
+  for mx in "${mxs[@]}"
+  do
+    echo Mail X: $mx
+  done
+fi
+
+if [ -z "$(dig txt default._domainkey.$1 +short)" ]; then
+  echo No DKIM record
+else
+  echo DKIM record exists
+fi
+
+if [ ${#txts[*]} == 0 ]; then
+  echo No TXT record for $1
+else
+  for txt in "${txts[@]}"
+  do
+    echo TXT: $txt
+  done
+fi
+
+echo DMARC: $dmarc
+
+if [ ${#hs[*]} == 0 ]; then
+  echo No PTR record
+else 
+  for h in ${hs[@]}
+  do
+    echo Host: $h
+  done
+fi
+
